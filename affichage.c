@@ -2,46 +2,76 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include <SDL_image.h>
-#include <SDL_ttf.h>
 #include "affichage.h"
 
-void init_sdl_video(){
+typedef struct{
+    SDL_Surface *surface;
+    SDL_Rect pos;
+}Surface;
+
+
+/*------------------------------------------------------------------*/
+
+void config_surface(Surface *s, int w, int h, int x, int y, Uint8 bpp_video, Uint32 color){
     
-    if(SDL_Init(SDL_INIT_VIDEO) == -1){
-        fprintf(stderr, "Erreur d'initialisation de la SDL : %s\n", SDL_GetError());
-        exit(EXIT_FAILURE);
-    }
+    (*s).surface = SDL_CreateRGBSurface(SDL_HWSURFACE, w, h, bpp_video, 0, 0, 0, 0);
+    SDL_FillRect((*s).surface, NULL, color);
+    (*s).pos.x = x;
+    (*s).pos.y = y;
     
 }
 
 /*------------------------------------------------------------------*/
 
-void init_sdl_text(){
-     if( TTF_Init() == -1 ){
-        fprintf(stderr, "Erreur d'initialisation de TTF_Init : %s\n", TTF_GetError());
-        SDL_Quit();
-        exit(EXIT_FAILURE);
+void config_text(Surface *s, int x, int y, TTF_Font *font, char *text, SDL_Color font_color){
+
+    (*s).surface = TTF_RenderText_Blended(font, text, font_color);
+    (*s).pos.x = x - (*s).surface->w/2;
+    (*s).pos.y = y; 
+   
+}
+    
+/*------------------------------------------------------------------*/
+
+void background_color(Window w, Surface *background){
+    
+    int i;
+    for(i=0; i<HAUTEUR; ++i){
+        //valeurs entre 0 et 255
+        int borne_min = 100;
+        int borne_max = 200;
+        float coef = (HAUTEUR*borne_min)/(256-borne_min);
+        int couleur = ((float)(i+coef))/(HAUTEUR+coef)*(borne_max+1);
+        config_surface(&background[i], LARGEUR, 1, 0, i, get_bpp_video(w), SDL_MapRGB(get_Screen(w)->format, couleur, couleur, couleur));
     }
+        
 }
 
 /*------------------------------------------------------------------*/
 
-void check_video(const SDL_Surface *surface){
-    if(surface == NULL){
-        fprintf(stderr, "Impossible de charger le mode vidéo %s\n", SDL_GetError());
-        SDL_Quit();
-        exit(EXIT_FAILURE);
-    }
+void afficher_background(Window w, Surface *background){
+    
+    int i;
+    for(i=0; i<HAUTEUR; ++i)
+        SDL_BlitSurface(background[i].surface, NULL, get_Screen(w), &background[i].pos);
+    
 }
-
+    
 /*------------------------------------------------------------------*/
 
-void pause(){
+void pause(Window w, Surface *background, Surface play, Surface quit){
 
     bool stop = false;
     SDL_Event event;
     SDLKey key_pressed;
+    
+                        //affichage du plateau
+                    Surface plateau;
+                    plateau.surface = IMG_Load(REPERTOIRE_PLATEAU);
+                    plateau.pos.x = LARGEUR/2 - plateau.surface->w/2;
+                    plateau.pos.y = HAUTEUR/2 - plateau.surface->h/2;
+    
+    int clicX, clicY;
     
     while(!stop){
         SDL_WaitEvent(&event);
@@ -51,7 +81,17 @@ void pause(){
                 break;
                 
             case SDL_MOUSEBUTTONDOWN:
-                printf("X=%d Y=%d\n",event.button.x,event.button.y); // on récupère les coordonnées du clic
+                clicX = event.button.x;
+                clicY = event.button.y;
+                printf("X=%d Y=%d\n",clicX, clicY); // on récupère les coordonnées du clic
+                
+                if(clicX >= quit.pos.x && clicX <= quit.pos.x + quit.surface->w && clicY >= quit.pos.y && clicY <= quit.pos.y + quit.surface->h)
+                    stop = true;
+                
+                if(clicX >= play.pos.x && clicX <= play.pos.x + play.surface->w && clicY >= play.pos.y && clicY <= play.pos.y + play.surface->h){
+                    afficher_background(w, background);
+                    SDL_BlitSurface(plateau.surface, NULL, get_Screen(w), &plateau.pos);
+                }
                 break;
                 
             case SDL_KEYDOWN :
@@ -67,97 +107,96 @@ void pause(){
                 }
             break;
         }
+        SDL_Flip(get_Screen(w)); 
     }
 }
     
 /*------------------------------------------------------------------*/
 
-typedef struct{
-    SDL_Surface *surface;
-    SDL_Rect pos;
-}Surface;
-
-void afficher_menu(){
+void afficher_menu(Window w){
     
-    SDL_Surface *screen;
-    Uint8  bit_color = 32; // 32 bits de couleur
-    Uint32 videoflags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+    SDL_Surface *screen = get_Screen(w);
+    Uint32 red = SDL_MapRGB(screen->format, 255, 0, 0);
+    Uint32 black = SDL_MapRGB(screen->format, 0, 0, 0);
+    Uint8 bpp_video = get_bpp_video(w);
+    TTF_Font *font = get_Font(w);
+    SDL_Color font_color = get_font_color(w);
     int i;
     
-    init_sdl_video();
-    screen = SDL_SetVideoMode(LARGEUR, HAUTEUR, bit_color, videoflags); // fenetre pour la surface principale
-    check_video(screen);
-    
-    init_sdl_text();
-    
-    // nom de la fenetre
-    SDL_WM_SetCaption(TITLE_WINDOW, NULL);
-    // icone de la fenetre
-    SDL_WM_SetIcon(IMG_Load(REPERTOIRE_ICONE), NULL);
-    
-    TTF_Font *police = TTF_OpenFont(REPERTOIRE_POLICE, TAILLE_POLICE);
-    SDL_Color policeNoire = {0,0,0};
-    
     Surface title;
-    title.surface = TTF_RenderText_Blended(police, TITLE, policeNoire);
     
-    title.pos.x = LARGEUR/2 - title.surface->w/2;
-    title.pos.y = 25;
+    config_text(&title, LARGEUR/2, HAUTEUR/20, font, TITLE, font_color);
     
     //affichage des cadres
     
-    Surface cadre1, cadre2;
-    cadre1.surface = SDL_CreateRGBSurface(SDL_HWSURFACE, title.surface->w + 10, title.surface->h, bit_color, 0, 0, 0, 0);
-    cadre2.surface = SDL_CreateRGBSurface(SDL_HWSURFACE, title.surface->w + 20, title.surface->h + 10, bit_color, 0, 0, 0, 0);
+    Surface title_2, title_1;
     
-    SDL_FillRect(cadre1.surface, NULL, SDL_MapRGB(screen->format, 255, 0, 0));
-    SDL_FillRect(cadre2.surface, NULL, SDL_MapRGB(screen->format, 0, 0, 0));
+    config_surface(&title_2, title.surface->w + 10, title.surface->h, title.pos.x - 5, title.pos.y, bpp_video, red);
+    config_surface(&title_1, title.surface->w + 20, title.surface->h + 10, title.pos.x - 10, title.pos.y - 5, bpp_video, black);
     
-    cadre1.pos.x = title.pos.x - 5;
-    cadre1.pos.y = title.pos.y;
+    Surface play_2, play_1;
     
-    cadre2.pos.x = title.pos.x - 10;
-    cadre2.pos.y = title.pos.y - 5;
+    config_surface(&play_2, title_2.surface->w, title_2.surface->h, title_2.pos.x, HAUTEUR/3, bpp_video, red);
+    config_surface(&play_1, title_1.surface->w, title_1.surface->h, title_1.pos.x, play_2.pos.y - 5, bpp_video, black);
     
-    //affichage du plateau
-    Surface plateau;
-    plateau.surface = IMG_Load(REPERTOIRE_PLATEAU);
-    plateau.pos.x = LARGEUR/2 - plateau.surface->w/2;
-    plateau.pos.y = HAUTEUR/2 - plateau.surface->h/2;
+    Surface load_2, load_1;
     
-    //afficahe fond dégradé
-    Surface line[HAUTEUR];
+    config_surface(&load_2, play_2.surface->w, play_2.surface->h, play_2.pos.x, play_1.pos.y + play_1.surface->h, bpp_video, red);
+    config_surface(&load_1, play_1.surface->w, play_1.surface->h, play_1.pos.x, play_2.pos.y + play_2.surface->h, bpp_video, black);
     
-    for(i=0; i<HAUTEUR; ++i){
-        line[i].surface = SDL_CreateRGBSurface(SDL_HWSURFACE, LARGEUR, 1, bit_color, 0, 0, 0, 0);
-        //valeurs entre 0 et 255
-        int borne_min = 100;
-        int borne_max = 200;
-        float coef = (HAUTEUR*borne_min)/(256-borne_min);
-        int couleur = ((float)(i+coef))/(HAUTEUR+coef)*(borne_max+1);
-        
-        line[i].pos.x = 0;
-        line[i].pos.y = i;
-        SDL_FillRect(line[i].surface, NULL, SDL_MapRGB(screen->format, couleur, couleur, couleur));
-        SDL_BlitSurface(line[i].surface, NULL, screen, &line[i].pos);
-    }
+    Surface quit_2, quit_1;
     
-    SDL_BlitSurface(cadre2.surface, NULL, screen, &cadre2.pos);
-    SDL_BlitSurface(cadre1.surface, NULL, screen, &cadre1.pos);
+    config_surface(&quit_2, load_2.surface->w, load_2.surface->h, load_2.pos.x, load_1.pos.y + load_1.surface->h, bpp_video, red);
+    config_surface(&quit_1, load_1.surface->w, load_1.surface->h, load_1.pos.x, load_2.pos.y + load_2.surface->h, bpp_video, black);
+    
+    Surface play, load, quit;
+    
+    config_text(&play, LARGEUR/2, play_2.pos.y, font, "JOUER", font_color);
+    config_text(&load, LARGEUR/2, load_2.pos.y, font, "CHARGER", font_color);
+    config_text(&quit, LARGEUR/2, quit_2.pos.y, font, "QUITTER", font_color);
+    
+    //affiche fond dégradé
+    Surface background[HAUTEUR];
+    background_color(w, background);
+    afficher_background(w, background);
+    
+    SDL_BlitSurface(play_1.surface, NULL, screen, &play_1.pos);
+    SDL_BlitSurface(play_2.surface, NULL, screen, &play_2.pos);
+    
+    SDL_BlitSurface(load_1.surface, NULL, screen, &load_1.pos);
+    SDL_BlitSurface(load_2.surface, NULL, screen, &load_2.pos);
+    
+    SDL_BlitSurface(quit_1.surface, NULL, screen, &quit_1.pos);
+    SDL_BlitSurface(quit_2.surface, NULL, screen, &quit_2.pos);
+    
+    SDL_BlitSurface(play.surface, NULL, screen, &play.pos);
+    SDL_BlitSurface(load.surface, NULL, screen, &load.pos);
+    SDL_BlitSurface(quit.surface, NULL, screen, &quit.pos);
+       
+    SDL_BlitSurface(title_1.surface, NULL, screen, &title_1.pos);
+    SDL_BlitSurface(title_2.surface, NULL, screen, &title_2.pos);
     SDL_BlitSurface(title.surface, NULL, screen, &title.pos);
-    SDL_BlitSurface(plateau.surface, NULL, screen, &plateau.pos);
     
-    pause();
+    pause(w, background, play_2, quit_2);
     
     for(i=0; i<HAUTEUR; ++i)
-        SDL_FreeSurface(line[i].surface);
+        SDL_FreeSurface(background[i].surface);
     
-    SDL_FreeSurface(cadre1.surface);
-    SDL_FreeSurface(cadre2.surface);
-    SDL_FreeSurface(plateau.surface);
+    SDL_FreeSurface(play_2.surface);
+    SDL_FreeSurface(play_1.surface);
+    SDL_FreeSurface(load_2.surface);
+    SDL_FreeSurface(load_1.surface);
+    SDL_FreeSurface(quit_2.surface);
+    SDL_FreeSurface(quit_1.surface);
+    
+    SDL_FreeSurface(play.surface);
+    SDL_FreeSurface(load.surface);
+    SDL_FreeSurface(quit.surface);
+    
+    SDL_FreeSurface(title_2.surface);
+    SDL_FreeSurface(title_1.surface);
+//     SDL_FreeSurface(plateau.surface);
     SDL_FreeSurface(title.surface);
-    TTF_CloseFont(police);
-    TTF_Quit();
-    SDL_Quit(); // SDL_FreeSurface(screen);
+    SDL_FreeSurface(screen);
     
 }

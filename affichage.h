@@ -1,27 +1,21 @@
 #ifndef AFFICHAGE
 #define AFFICHAGE
 
-#define LARGEUR 800
-#define HAUTEUR 600
-
 #include <SDL/SDL.h>
+#include <SDL_image.h>
+#include <SDL_ttf.h>
 
-#define REPERTOIRE_ICONE "Images/icone_Hex.png"
+#include "init_window.h"
+
 #define REPERTOIRE_PLATEAU "Images/hex.png"
-#define REPERTOIRE_POLICE "Images/FunSized.ttf"
-#define TAILLE_POLICE 60
-#define TITLE "Jeu de Hex"
-#define TITLE_WINDOW "--> | Hex Game | <--"
+
+void afficher_menu(Window w);
 
 
-void init_sdl_video();
 
-void init_sdl_text();
 
-void check_video(const SDL_Surface *surface);
 
-void pause();
 
-void afficher_menu();
+
 
 #endif
