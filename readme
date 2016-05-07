@@ -1,5 +1,0 @@
-test.c : gcc test.c `sdl-config --cflags --libs` -lSDL_image -lSDL_ttf -o test
-fichier test non structuré
-
-makefile : test_Hex
-prototype version_1
