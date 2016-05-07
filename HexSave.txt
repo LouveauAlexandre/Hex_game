@@ -1,0 +1,28 @@
+\hex
+\board
+. . . . . . . . . R .
+. . . . . . . . . . .
+. . . . . . . . R . .
+. . . . . . . . . . .
+. . . . . . . R . . .
+B B B B B B . . . . .
+. . . . . . R . . . .
+. . . . . . . . . . .
+. . . . . R . . . . .
+. . . . . . . . . . .
+. . . . . . . . . . .
+\endboard
+\game
+\play B 5 0
+\play R 0 9
+\play B 5 1
+\play R 2 8
+\play B 5 2
+\play R 4 7
+\play B 5 3
+\play R 6 6
+\play B 5 4
+\play R 8 5
+\play B 5 5
+\endgame
+\endhex
