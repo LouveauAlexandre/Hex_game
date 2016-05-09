@@ -9,8 +9,18 @@
 #include "game_option.h"
 #include "play.h"
 
-Stack Stk;
+struct Bot_IA_S{
+	int sens;
+	int dir;
+	Stack pos;
+	int bloc;
+	int demi;
+	int startx;
+	int starty;
+};
 
+ Stack Stk;
+ Bot_IA bot;
 /*------------------------------------------------------------------*/
 
 bool empty_stack(Stack S){
@@ -29,24 +39,28 @@ void init_stack(Stack *S){
     
 /*------------------------------------------------------------------*/
 
-void stack_hexa(Stack *S, Position hexa){
+void stack_hexa(Stack *S, Position hexa, int dir, int sens){
     Node Sp = (Node)malloc(sizeof(struct Node_S));
     Sp->prev = (*S)->current;
     Sp->next = (*S)->sentinel;
     (*S)->current->next = Sp ;
     (*S)->sentinel->prev = Sp;
     Sp->hexa = hexa;
+    Sp->dir = dir;
+    Sp->sens = sens;
     (*S)->current = Sp;
 }
 
 /*------------------------------------------------------------------*/
 
 void unstack_hexa(Stack *S){
-    Node Sp = (*S)->current;
-    (*S)->current = (*S)->current->prev;
-    (*S)->current->next = (*S)->sentinel;
-    (*S)->sentinel->prev = (*S)->current;
-    free(Sp);
+    if(!empty_stack(*S)){
+	Node Sp = (*S)->current;
+	(*S)->current = (*S)->current->prev;
+	(*S)->current->next = (*S)->sentinel;
+	(*S)->sentinel->prev = (*S)->current;
+	free(Sp);
+    }
 }
 
 /*------------------------------------------------------------------*/
@@ -60,16 +74,9 @@ void free_stack(Stack *S){
 
 /*------------------------------------------------------------------*/
 
-void map_stack(Stack S){
-    S->current = S->sentinel;
-    printf("map_stack\n");
-    while((S->current = S->current->prev) != S->sentinel){
-        printf("-----\n");
-        printf("%d %d\n", S->current->hexa->i, S->current->hexa->j);
-    }
-    printf("map_stack_end\n");
-    printf("\n");
-    S->current = S->current->prev;
+void free_ia(Bot_IA *bot){
+	free_stack(&(*bot)->pos);
+	free(*bot);
 }
 
 /*------------------------------------------------------------------*/
@@ -97,7 +104,7 @@ bool search_hexa(Surface *Pion, int X, int Y, Position grille[NB_LIGNE][NB_COLON
         get_pos(*Pion)->y = grille[x][y]->y - 10;
         if(grille[x][y]->color == VIDE){
             grille[x][y]->color = color_player;
-            stack_hexa(&Stk, grille[x][y]);
+            stack_hexa(&Stk, grille[x][y], START, START);
 //             map_stack(Stk);
             return true;
         }
@@ -270,6 +277,7 @@ void free_grille(Position grille[NB_LIGNE][NB_COLONNE]){
     for(i=0; i<NB_LIGNE; ++i){
         for(j=0; j<NB_COLONNE; ++j){
             free(grille[i][j]);
+            free(grille[i][j]->next);
         }
     }
 }
@@ -458,32 +466,897 @@ void winner_game(Window w, Menu *m, bool player){
                         
 /*------------------------------------------------------------------*/
 
-void strategy_ia_1(Window w, Stack Stk, Position grille[NB_LIGNE][NB_COLONNE], Surface pion2, bool player){
+void init_IA(Bot_IA *bot){
+	*bot = (Bot_IA) malloc(sizeof(struct Bot_IA_S));
+	(*bot)->sens = START;
+	(*bot)->bloc = 0;
+	(*bot)->demi = false;
+	init_stack(&((*bot)->pos));
+}
+/*------------------------------------------------------------------*/
+
+int verif_occup(Node test, int i, int j, int *dir, int *sens){
+	if(test->sens == HAUT){
+		if(test->dir == START){
+			if(test->hexa->i+1 == i && test->hexa->j-1 == j){
+				*sens = HAUT;
+				*dir = START;
+				return 1;
+			}
+			else if(test->hexa->i+1 == i && test->hexa->j == j){
+				*sens = HAUT;
+				*dir = START;
+				return 2;
+			}
+		}
+		else if(test->dir == GAUCHE){
+			if(test->hexa->i == i && test->hexa->j+1 == j){
+				*sens = HAUT;
+				*dir = GAUCHE;
+				return 1;
+			}
+			else if(test->hexa->i+1 == i && test->hexa->j == j){
+				*sens = HAUT;
+				*dir = GAUCHE;
+				return 2;
+			}
+		}
+		else if(test->dir == DROITE){
+			if(test->hexa->i == i && test->hexa->j-1 == j){
+				*sens = HAUT;
+				*dir = DROITE;
+				return 1;
+			}
+			else if(test->hexa->i+1 == i && test->hexa->j-1 == j){
+				*sens = HAUT;
+				*dir = DROITE;
+				return 2;
+			}
+		}
+	}
+	else if(test->sens == BAS){
+		if(test->dir == START){
+			if(test->hexa->i-1 == i && test->hexa->j == j){
+				*sens = BAS;
+				*dir = START;
+				return 1;
+			}
+			else if(test->hexa->i-1 == i && test->hexa->j+1 == j){
+				*sens = BAS;
+				*dir = START;
+				return 2;
+			}
+		}
+		else if(test->dir == GAUCHE){
+			if(test->hexa->i == i && test->hexa->j+1 == j){
+				*sens = BAS;
+				*dir = GAUCHE;
+				return 1;
+			}
+			else if(test->hexa->i-1 == i && test->hexa->j+1 == j){
+				*sens = BAS;
+				*dir = GAUCHE;
+				return 2;
+			}
+		}
+		else if(test->dir == DROITE){
+			if(test->hexa->i == i && test->hexa->j-1 == j){
+				*sens = BAS;
+				*dir = DROITE;
+				return 1;
+			}
+			else if(test->hexa->i-1 == i && test->hexa->j == j){
+				*sens = BAS;
+				*dir = DROITE;
+				return 2;
+			}
+		}
+	}
+	return START;
+}
+
+/*------------------------------------------------------------------*/
+
+void deter_hexa(int *i, int *j, int *dir, int *sens, int hexa){
+	if(*sens == HAUT){
+		if(*dir == START){
+			if(hexa == 1){
+				++*j;
+			}
+			else if(hexa == 2){
+				--*j;
+			}
+		}
+		else if(*dir == GAUCHE){
+			if(hexa == 1){
+				++*i;
+				--*j;
+			}
+			else if(hexa == 2){
+				--*i;
+				++*j;
+			}
+		}
+		else if(*dir == DROITE){
+			if(hexa == 1){
+				++*i;
+			}
+			else if(hexa == 2){
+				--*i;
+			}
+		}
+	}
+	else if(*sens == BAS){
+		if(*dir == START){
+			if(hexa == 1){
+				++*j;
+			}
+			else if(hexa == 2){
+				--*j;
+			}
+		}
+		else if(*dir == GAUCHE){
+			if(hexa == 1){
+				--*i;
+			}
+			else if(hexa == 2){
+				++*i;
+			}
+		}
+		else if(*dir == DROITE){
+			if(hexa == 1){
+				--*i;
+				++*j;
+			}
+			else if(hexa == 2){
+				++*i;
+				--*j;
+			}
+		}
+	}
+}
+
+/*------------------------------------------------------------------*/
+
+bool valide_hexa(int i, int j, Position grille[NB_LIGNE][NB_COLONNE]){
     
-    int i, j;
+	if(i < 0 || i > NB_LIGNE-1 || j < 0 || j > NB_COLONNE-1)
+		return false;
     
-    i = Stk->current->hexa->i;
-    j = Stk->current->hexa->j;
+	if(grille[i][j]->color != VIDE)
+		return false;
     
-    if(Stk->current->prev == Stk->sentinel){
-        if(i<=NB_LIGNE/2)
-            i = NB_LIGNE - 2;
-        else
-            i = 1;
-        
-        if(j<NB_COLONNE/2)
-            j = NB_COLONNE/2 + j;
-        else
-            j = j - NB_COLONNE/2 + 1;
-    }
+	return true;
+}
+
+/*------------------------------------------------------------------*/
+
+bool ami_rempli(int i, int j, Position grille[NB_LIGNE][NB_COLONNE]){
     
+	if(i < 0 || i > NB_LIGNE-1 || j < 0 || j > NB_COLONNE-1)
+		return false;
     
-    grille[i][j]->color = ROUGE;
-    stack_hexa(&Stk, grille[i][j]);
+	if(grille[i][j]->color != ROUGE)
+		return false;
     
-    get_pos(pion2)->x = grille[i][j]->x-10;
-    get_pos(pion2)->y = grille[i][j]->y-10;
-    SDL_BlitSurface(get_surface(pion2), NULL, get_screen(w), get_pos(pion2));
+	return true;
+}
+
+/*------------------------------------------------------------------*/
+
+bool deplacer_haut_gauche(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+	
+	int x, y;
+	
+	x = *i;
+	y = *j-1;
+	
+	if(valide_hexa(x, y, grille)){
+		x = *i-1;
+		y = *j;
+		if(valide_hexa(x, y, grille)){
+			x = *i-1;
+			y = *j-1;
+			if(valide_hexa(x, y, grille)){
+				*i = x;
+				*j = y;
+				*sens = HAUT;
+				*dir = GAUCHE;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool deplacer_haut_milieu(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+    
+	int x, y;
+	
+	x = *i-1;
+	y = *j;
+	
+	if(valide_hexa(x, y, grille)){
+		x = *i-1;
+		y = *j+1;
+		if(valide_hexa(x, y, grille)){
+			x = *i-2;
+			y = *j+1;
+			if(valide_hexa(x, y, grille)){
+				*i = x;
+				*j = y;
+				*sens = HAUT;
+				*dir = START;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool deplacer_haut_droite(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+    
+	int x, y;
+	
+	x = *i;
+	y = *j+1;
+	
+	if(valide_hexa(x, y, grille)){
+		x = *i-1;
+		y = *j+1;
+		if(valide_hexa(x, y, grille)){
+			x = *i-1;
+			y = *j+2;
+			if(valide_hexa(x, y, grille)){
+				*i = x;
+				*j = y;
+				*sens = HAUT;
+				*dir = DROITE;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool deplacer_bas_gauche(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+    
+	int x, y;
+	
+	x = *i;
+	y = *j-1;
+	
+	if(valide_hexa(x, y, grille)){
+		x = *i+1;
+		y = *j-1;
+		if(valide_hexa(x, y, grille)){
+			x = *i+1;
+			y = *j-2;
+			if(valide_hexa(x, y, grille)){
+				*i = x;
+				*j = y;
+				*sens = BAS;
+				*dir = GAUCHE;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool deplacer_bas_milieu(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+  
+	int x, y;
+	x = *i+1;
+	y = *j-1;
+	
+	if(valide_hexa(x, y, grille)){
+		x = *i+1;
+		y = *j;
+		if(valide_hexa(x, y, grille)){
+			x = *i+2;
+			y = *j-1;
+			if(valide_hexa(x, y, grille)){
+				*i = x;
+				*j = y;
+				*sens = BAS;
+				*dir = START;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool deplacer_bas_droite(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+    
+	int x, y;
+	
+	x = *i;
+	y = *j+1;
+	
+	if(valide_hexa(x, y, grille)){
+		x = *i+1;
+		y = *j;
+		if(valide_hexa(x, y, grille)){
+			x = *i+1;
+			y = *j+1;
+			if(valide_hexa(x, y, grille)){
+				*i = x;
+				*j = y;
+				*sens = BAS;
+				*dir = DROITE;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplir_haut_gauche(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+
+	int x, y;
+	
+	x = *i;
+	y = *j+1;
+	
+	if(!ami_rempli(x, y, grille) && !ami_rempli(x+1, y-1, grille)){
+		if(valide_hexa(x, y, grille)){
+			*i = x;
+			*j = y;
+			return true;
+		}
+		else if(valide_hexa(x+1, y-1, grille)){
+			*i = x+1;
+			*j = y-1;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplir_haut_milieu(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+
+	int x, y;
+	
+	x = *i+1;
+	y = *j;
+	
+	if(!ami_rempli(x, y, grille) && !ami_rempli(x, y-1, grille)){
+		if(valide_hexa(x, y, grille)){
+			*i = x;
+			*j = y;
+			return true;
+		}
+		else if(valide_hexa(x, y-1, grille)){
+			*i = x;
+			*j = y-1;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplir_haut_droite(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+
+	int x, y;
+	
+	x = *i;
+	y = *j-1;
+	
+	if(!ami_rempli(x, y, grille) && !ami_rempli(x+1, y, grille)){
+		if(valide_hexa(x, y, grille)){
+			*i = x;
+			*j = y;
+			return true;
+		}
+		else if(valide_hexa(x+1, y, grille)){
+			*i = x+1;
+			*j = y;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplir_bas_gauche(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+
+	int x, y;
+	
+	x = *i;
+	y = *j+1;
+	
+	if(!ami_rempli(x, y, grille) && !ami_rempli(x-1, y, grille)){
+		if(valide_hexa(x, y, grille)){
+			*i = x;
+			*j = y;
+			return true;
+		}
+		else if(valide_hexa(x-1, y, grille)){
+			*i = x-1;
+			*j = y;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplir_bas_milieu(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+
+	int x, y;
+	
+	x = *i-1;
+	y = *j;
+	
+	if(!ami_rempli(x, y, grille) && !ami_rempli(x, y+1, grille)){
+		if(valide_hexa(x, y, grille)){
+			*i = x;
+			*j = y;
+			return true;
+		}
+		else if(valide_hexa(x, y+1, grille)){
+			*i = x;
+			*j = y+1;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplir_bas_droite(int *i, int *j, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+
+	int x, y;
+	
+	x = *i;
+	y = *j-1;
+	
+	if(!ami_rempli(x, y, grille) && !ami_rempli(x-1, y+1, grille)){
+		if(valide_hexa(x, y, grille)){
+			*i = x;
+			*j = y;
+			return true;
+		}
+		else if(valide_hexa(x-1, y+1, grille)){
+			*i = x-1;
+			*j = y+1;
+			return true;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool valide_rempli(Node x, Position grille[NB_LIGNE][NB_COLONNE]){
+	if(x->sens == HAUT){
+		if(x->dir == START){
+			if(ami_rempli(x->hexa->i+2, x->hexa->j-1, grille))
+				return true;
+			else
+				return false;
+		}
+		else if(x->dir == GAUCHE){
+			if(ami_rempli(x->hexa->i+1, x->hexa->j+1, grille))
+				return true;
+			else
+				return false;
+		}
+		else if(x->dir == DROITE){
+			if(ami_rempli(x->hexa->i+1, x->hexa->j-2, grille))
+				return true;
+			else
+				return false;
+		}
+	}
+	else if(x->sens == BAS){
+		if(x->dir == START){
+			if(ami_rempli(x->hexa->i-2, x->hexa->j+1, grille))
+				return true;
+			else
+				return false;
+		}
+		if(x->dir == GAUCHE){
+			if(ami_rempli(x->hexa->i-1, x->hexa->j+2, grille))
+				return true;
+			else
+				return false;
+		}
+		if(x->dir == DROITE){
+			if(ami_rempli(x->hexa->i-1, x->hexa->j-1, grille))
+				return true;
+			else
+				return false;
+		}
+	}
+	return false;
+}
+
+/*------------------------------------------------------------------*/
+
+bool remplissage_hexa(int *i, int *j, Bot_IA bot, Position grille[NB_LIGNE][NB_COLONNE], int *dir, int *sens){
+	bool rempli;
+	bot->pos->current = bot->pos->sentinel;
+	for(int k = 0; k < bot->bloc; ++k)
+		bot->pos->current = bot->pos->current->prev;
+	while((bot->pos->current = bot->pos->current->prev) != bot->pos->sentinel){
+		rempli = false;
+		if(bot->pos->current->sens != START){
+			if(bot->pos->current->hexa->i-1 == 0){
+				if(ami_rempli(bot->pos->current->hexa->i-1, bot->pos->current->hexa->j+1, grille) || ami_rempli(bot->pos->current->hexa->i-1, bot->pos->current->hexa->j, grille))
+					rempli = true;
+				if(!rempli){
+					  if(valide_hexa(bot->pos->current->hexa->i-1, bot->pos->current->hexa->j, grille)){
+						  *i = bot->pos->current->hexa->i-1;
+						  *j = bot->pos->current->hexa->j;
+						  return true;
+					  }
+					  else if(valide_hexa(bot->pos->current->hexa->i-1, bot->pos->current->hexa->j+1, grille)){
+						  *i = bot->pos->current->hexa->i-1;
+						  *j = bot->pos->current->hexa->j+1;
+						  return true;
+					  }
+					  else if(valide_hexa(bot->pos->current->hexa->i, bot->pos->current->hexa->j-1, grille)){
+						  *i = bot->pos->current->hexa->i;
+						  *j = bot->pos->current->hexa->j-1;
+						  *dir = START;
+						  *sens = HAUT;
+						  return true;
+					  }
+					  else if(valide_hexa(bot->pos->current->hexa->i, bot->pos->current->hexa->j+1, grille)){
+						  *i = bot->pos->current->hexa->i;
+						  *j = bot->pos->current->hexa->j+1;
+						  *dir = START;
+						  *sens = HAUT;
+						  return true;
+					  }
+				}
+			}
+			else if(bot->pos->current->hexa->i+1 == NB_LIGNE-1){
+				if(ami_rempli(bot->pos->current->hexa->i+1, bot->pos->current->hexa->j-1, grille) || ami_rempli(bot->pos->current->hexa->i+1, bot->pos->current->hexa->j, grille))
+					rempli = true;
+				if(!rempli){
+					if(valide_hexa(bot->pos->current->hexa->i+1, bot->pos->current->hexa->j, grille)){
+						*i = bot->pos->current->hexa->i+1;
+						*j = bot->pos->current->hexa->j;
+						return true;
+					}
+					else if(valide_hexa(bot->pos->current->hexa->i+1, bot->pos->current->hexa->j-1, grille)){
+						*i = bot->pos->current->hexa->i+1;
+						*j = bot->pos->current->hexa->j-1;
+						return true;
+					}
+					else if(valide_hexa(bot->pos->current->hexa->i, bot->pos->current->hexa->j-1, grille)){
+						*i = bot->pos->current->hexa->i;
+						*j = bot->pos->current->hexa->j-1;
+						*dir = START;
+						*sens = BAS;
+						return true;
+					}
+					else if(valide_hexa(bot->pos->current->hexa->i, bot->pos->current->hexa->j+1, grille)){
+						*i = bot->pos->current->hexa->i;
+						*j = bot->pos->current->hexa->j+1;
+						*dir = START;
+						*sens = BAS;
+						return true;
+					}
+				}
+			}
+		}
+		*i = bot->pos->current->hexa->i;
+		*j = bot->pos->current->hexa->j;
+		if(valide_rempli(bot->pos->current, grille)){
+			if(bot->pos->current->sens == HAUT){
+				if(bot->pos->current->dir == START){
+					if(remplir_haut_milieu(i, j, grille, dir, sens))
+						return true;
+				}
+				else if(bot->pos->current->dir == GAUCHE){
+					if(remplir_haut_gauche(i, j, grille, dir, sens))
+						return true;
+				}
+				else if(bot->pos->current->dir == DROITE){
+					if(remplir_haut_droite(i, j, grille, dir, sens))
+						return true;
+				}
+			}
+			else if(bot->pos->current->sens == BAS){
+				if(bot->pos->current->dir == START){
+					if(remplir_bas_milieu(i, j, grille, dir, sens))
+						return true;
+				}
+				if(bot->pos->current->dir == GAUCHE){
+					if(remplir_bas_gauche(i, j, grille, dir, sens))
+						return true;
+				}
+				if(bot->pos->current->dir == DROITE){
+					if(remplir_bas_droite(i, j, grille, dir, sens))
+						return true;
+				}
+			}
+		}
+	}
+	printf("\n\n");
+	return false;
+} 
+  
+/*------------------------------------------------------------------*/
+
+void strategy_ia_1(Window w, Stack *Stk, Position grille[NB_LIGNE][NB_COLONNE], Surface pion2, Bot_IA *bot){
+    
+	int i, j;
+	float k;
+	int dir, sens, hexa;
+	bool play = false;
+
+	i = (*Stk)->current->hexa->i;
+	j = (*Stk)->current->hexa->j;
+
+	if((*bot)->sens == START){
+		j = ((i*j)/2)%NB_COLONNE;
+		k = ((float)(i*j)/2.f);
+		while(k>=11) k-=NB_COLONNE;
+		if((float)j != k && j < 10)
+			j = j+1;
+
+		if(j == 0) ++j;
+		else if(j == 10) --j;
+		
+		if(i <= NB_LIGNE/2){
+			i = 9;
+			(*bot)->sens = HAUT;
+			if(j <= NB_COLONNE/3)
+				(*bot)->dir = DROITE;
+			else
+				(*bot)->dir = GAUCHE;
+		}
+		else{
+			i = 1;
+			(*bot)->sens = BAS;
+			if(j >= (NB_COLONNE/3)*2)
+				(*bot)->dir = GAUCHE;
+			else
+				(*bot)->dir = DROITE;
+		}
+		(*bot)->startx = i;
+		(*bot)->starty = j;
+		dir = START;
+		sens = (*bot)->sens;
+	}
+	else{
+		sens = START;
+		dir = START;
+		hexa = START;
+		Node current = (*bot)->pos->sentinel;
+		while(((current = current->prev) != (*bot)->pos->sentinel) && sens == START)
+			hexa = verif_occup(current, i, j, &dir, &sens);
+		if(sens != START){
+			deter_hexa(&i, &j, &dir, &sens, hexa);
+			if(grille[i][j]->color != VIDE)
+				hexa = START;
+			if(hexa != START) ++(*bot)->bloc;
+		}
+		if(hexa == START){
+			for(int k = 0; k < (*bot)->bloc; ++k)
+				(*bot)->pos->current = (*bot)->pos->current->prev;
+			i = (*bot)->pos->current->hexa->i;
+			j = (*bot)->pos->current->hexa->j;
+			
+			if(((*bot)->sens == HAUT && i <= 1) || ((*bot)->sens == BAS && i >= 9))
+				(*bot)->demi = 1;
+			
+			if((*bot)->demi == 0){
+				while(!play && (*bot)->pos->current != (*bot)->pos->sentinel){
+					if((*bot)->sens == HAUT)
+						play = deplacer_haut_milieu(&i, &j, grille, &dir, &sens);
+					else
+						play = deplacer_bas_milieu(&i, &j, grille, &dir, &sens);
+					
+					if(!play){
+						if((*bot)->sens == HAUT){
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_haut_gauche(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_haut_droite(&i, &j, grille, &dir, &sens);
+						}
+						else{
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_bas_gauche(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_bas_droite(&i, &j, grille, &dir, &sens);
+						}
+					}
+
+					if(!play){
+						if((*bot)->sens == HAUT){
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_haut_droite(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_haut_gauche(&i, &j, grille, &dir, &sens);
+						}
+						else{
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_bas_droite(&i, &j, grille, &dir, &sens);
+							
+							else
+								play = deplacer_bas_gauche(&i, &j, grille, &dir, &sens);
+						}
+					}
+					
+					if(!play){
+						if((*bot)->sens == HAUT){
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_bas_gauche(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_bas_droite(&i, &j, grille, &dir, &sens);
+						}
+						else{
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_haut_gauche(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_haut_droite(&i, &j, grille, &dir, &sens);
+						}
+					}
+					
+					if(!play){
+						if((*bot)->sens == HAUT){
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_bas_droite(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_bas_gauche(&i, &j, grille, &dir, &sens);
+						}
+						else{
+							if((*bot)->dir == GAUCHE)
+								play = deplacer_haut_droite(&i, &j, grille, &dir, &sens);
+							else
+								play = deplacer_haut_gauche(&i, &j, grille, &dir, &sens);
+						}
+					}
+					
+					if(!play){
+						if((*bot)->sens == HAUT)
+							play = deplacer_bas_milieu(&i, &j, grille, &dir, &sens);
+						else
+							play = deplacer_haut_milieu(&i, &j, grille, &dir, &sens);
+					}
+					if(!play){
+						(*bot)->pos->current = (*bot)->pos->current->prev;
+						i = (*bot)->pos->current->hexa->i;
+						j = (*bot)->pos->current->hexa->j;
+						dir = START;
+						sens = START;
+					}
+					else
+						(*bot)->pos->current = (*bot)->pos->sentinel->prev;
+					
+				}
+				if(!play){
+					i = (*bot)->pos->sentinel->next->hexa->i;
+					j = (*bot)->pos->sentinel->next->hexa->j;
+					i = NB_LIGNE-1-i;
+					j = NB_COLONNE-1-j;
+					if((*bot)->sens == HAUT)
+						(*bot)->sens = BAS;
+					else
+						(*bot)->sens = HAUT;
+					
+					if((*bot)->dir == GAUCHE)
+						(*bot)->dir = DROITE;
+					else
+						(*bot)->dir = GAUCHE;
+					
+					(*bot)->startx = i;
+					(*bot)->starty = j;
+					dir = START;
+					sens = (*bot)->sens;
+					(*bot)->pos->current = (*bot)->pos->sentinel->prev;
+					if(!valide_hexa(i, j, grille)){
+						i = 0;
+						while(j < NB_COLONNE){
+							i = 0;
+							while(i < NB_LIGNE){
+								if(valide_hexa(i, j, grille))
+									break;
+								++i;
+							}
+							if(valide_hexa(i, j, grille))
+								break;
+							++j;
+						}
+						if( i > (*bot)->pos->current->hexa->i)
+							sens = BAS;
+						else
+							sens = HAUT;
+						if(sens == HAUT){
+							if(j == (*bot)->pos->current->hexa->j || j == (*bot)->pos->current->hexa->j+1)
+								dir = START;
+							else if(j < (*bot)->pos->current->hexa->j)
+								  dir = GAUCHE;
+							else
+								  dir = DROITE;
+						}
+						else{
+							if(j == (*bot)->pos->current->hexa->j || j == (*bot)->pos->current->hexa->j-1)
+								dir = START;
+							else if(j < (*bot)->pos->current->hexa->j-1)
+								  dir = GAUCHE;
+							else
+								  dir = DROITE;
+						}
+					}
+				}
+				(*bot)->bloc = 0;
+			}
+			else{
+				play = remplissage_hexa(&i, &j, *bot, grille, &dir, &sens);
+				(*bot)->pos->current = (*bot)->pos->sentinel->prev;
+				(*bot)->bloc = 0;
+				if(!play){
+					i = 0;
+					while(j < NB_COLONNE){
+						i = 0;
+						while(i < NB_LIGNE){
+							if(valide_hexa(i, j, grille))
+								break;
+							++i;
+						}
+						if(valide_hexa(i, j, grille))
+							break;
+						++j;
+					}
+ 					if( i > (*bot)->pos->current->hexa->i)
+						sens = BAS;
+					else
+						sens = HAUT;
+					if(sens == HAUT){
+						if(j == (*bot)->pos->current->hexa->j || j == (*bot)->pos->current->hexa->j+1)
+							dir = START;
+						else if(j < (*bot)->pos->current->hexa->j)
+							  dir = GAUCHE;
+						else
+							  dir = DROITE;
+					}
+					else{
+						if(j == (*bot)->pos->current->hexa->j || j == (*bot)->pos->current->hexa->j-1)
+							dir = START;
+						else if(j < (*bot)->pos->current->hexa->j-1)
+							  dir = GAUCHE;
+						else
+							  dir = DROITE;
+					}
+				}
+				++(*bot)->demi;
+			}
+		}
+	}
+	grille[i][j]->color = ROUGE;
+	stack_hexa(&((*bot)->pos), grille[i][j], dir, sens);
+	stack_hexa(Stk, grille[i][j], START, START);
+	
+	get_pos(pion2)->x = grille[i][j]->x-10;
+	get_pos(pion2)->y = grille[i][j]->y-10;
+	SDL_BlitSurface(get_surface(pion2), NULL, get_screen(w), get_pos(pion2));
 }
 
 /*------------------------------------------------------------------*/
@@ -493,7 +1366,7 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
     bool in_game = true;
     bool player = false;
     bool win = false;
-    
+    int charge;
     Position grille[NB_LIGNE][NB_COLONNE];
     
     SDL_Event event;
@@ -527,11 +1400,26 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
     for(i=0; i<NB_BOUTON_HIST; ++i)
         modif_texte_menu(&Interface[HIST], w, "            ", get_Font(w, 2), i);
     
+      if(ia == 1)
+	    init_IA(&bot);
+      
     if(load){
-        Charger(grille, &Stk, &player);
-        game_actualisation(w, Stk, pion1, pion2);
-        hist_actualisation(w, Stk, &Interface[HIST]);
-        SDL_Flip(get_screen(w));
+        charge = Charger(grille, &Stk, &player);
+	if(charge == 0){
+	    game_actualisation(w, Stk, pion1, pion2);
+	    hist_actualisation(w, Stk, &Interface[HIST]);
+	    SDL_Flip(get_screen(w));
+	}
+	else{
+		sprintf(message, "Chargement impossible !");
+		modif_texte_menu(&Interface[INFO], w, message, get_Font(w, 2), 0);
+		display_menu(Interface[MENU_3], w);
+		display_menu(Interface[INFO], w);
+		display_menu(Interface[HIST], w);
+		SDL_Flip(get_screen(w));
+		SDL_Delay(2000);
+	}
+    
     }
     
     sprintf(message, "Tour de J%d (J1:BLEU / J2:ROUGE)", player+1);
@@ -549,15 +1437,24 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
             case SDL_QUIT :
                 free_grille(grille);
                 free_stack(&Stk);
+                if(ia == 1)
+                    free_ia(&bot);
+                
                 SDL_FreeSurface(get_surface(plateau));
                 SDL_FreeSurface(get_surface(pion1));
                 SDL_FreeSurface(get_surface(pion2));
+                free(plateau);
+                free(pion1);
+                free(pion2);
                 return(true);
             break;
             
             case SDL_MOUSEMOTION:
                 posX = event.motion.x;
                 posY = event.motion.y;
+                
+                for(i=0; i<NB_BOUTON_MENU_3; ++i)
+                    modif_menu(&Interface[MENU_3], w, get_color(w, GREEN), i);
                 
                 if(clic_area(get_pos_menu(Interface[MENU_3], 0), posX, posY) && !empty_stack(Stk) && !win)
                     modif_menu(&Interface[MENU_3], w, get_color(w, CYAN), 0);
@@ -573,9 +1470,7 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
                     modif_menu(&Interface[MENU_3], w, get_color(w, RED), 2);
                 else if(clic_area(get_pos_menu(Interface[MENU_3], 3), posX, posY))
                     modif_menu(&Interface[MENU_3], w, get_color(w, CYAN), 3);
-                else
-                    for(i=0; i<NB_BOUTON_MENU_3; ++i)
-                        modif_menu(&Interface[MENU_3], w, get_color(w, GREEN), i);
+                
             break;
             
             case SDL_KEYDOWN :
@@ -615,7 +1510,7 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
                         
                         if(ia && !win){
                             if(ia == 1){
-                                strategy_ia_1(w, Stk, grille, pion2, player);
+                                strategy_ia_1(w, &Stk, grille, pion2, &bot);
                                 put_pawn(w, Stk, &Interface[HIST], &Interface[INFO], player);
                             }
                             if((win = detect_winner(player, grille)))
@@ -641,6 +1536,25 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
                             undo_game(w, grille, Stk, &Interface[HIST], &Interface[INFO], player);
                             --i;
                         }
+                        if(ia){
+				if( bot->pos->current != bot->pos->sentinel->next && bot->pos->current->hexa->i == bot->startx && bot->pos->current->hexa->j == bot->starty){
+					bot->startx = bot->pos->sentinel->next->hexa->i;
+					bot->starty = bot->pos->sentinel->next->hexa->j;
+					if(bot->sens == HAUT)
+						bot->sens = BAS;
+					else
+						bot->sens = HAUT;
+					if(bot->dir == GAUCHE)
+						bot->dir = DROITE;
+					else
+						bot->dir = GAUCHE;
+				}
+				if(bot->demi > 0) --bot->demi;
+				unstack_hexa(&(bot->pos));
+				if(empty_stack(bot->pos))
+					bot->sens = START;
+			}
+
                         
                         display_background(w);
                         display_menu(Interface[TITLE], w);
@@ -660,9 +1574,16 @@ bool play(Window w, Menu Interface[NB_INTERFACE], bool load, int ia){
     
     free_grille(grille);
     free_stack(&Stk);
+    if(ia == 1)
+	free_ia(&bot);
+    
     SDL_FreeSurface(get_surface(plateau));
     SDL_FreeSurface(get_surface(pion1));
     SDL_FreeSurface(get_surface(pion2));
+    free(plateau);
+    free(pion1);
+    free(pion2);
+    
     return(false);
 
 }

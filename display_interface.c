@@ -53,7 +53,7 @@ void config_surface(Surface *s, int w, int h, int x, int y, Uint32 color){
 /*------------------------------------------------------------------*/
 
 void config_text(Surface *s, int x, int y, TTF_Font *font, char *text, SDL_Color font_color){
-
+    
     (*s)->surface = TTF_RenderText_Blended(font, text, font_color);
     (*s)->pos.x = x;
     (*s)->pos.y = y; 
@@ -97,6 +97,9 @@ void main_menu(Window w){
                 posX = event.motion.x;
                 posY = event.motion.y;
                 
+                for(i=0; i<NB_BOUTON_MENU_1; ++i)
+                    modif_menu(&Interface[MENU_1], w, get_color(w, GREEN), i);
+                
                 if(clic_area(get_pos_menu(Interface[MENU_1], 0), posX, posY))
                     modif_menu(&Interface[MENU_1], w, get_color(w, CYAN), 0);
                 
@@ -106,24 +109,19 @@ void main_menu(Window w){
                 else if(clic_area(get_pos_menu(Interface[MENU_1], 2), posX, posY))
                     modif_menu(&Interface[MENU_1], w, get_color(w, CYAN), 2);
                 
-                else
-                    for(i=0; i<NB_BOUTON_MENU_1; ++i)
-                        modif_menu(&Interface[MENU_1], w, get_color(w, GREEN), i);
-                
                 if(afficher_menu_2){
                         
+                    for(i=0; i<NB_BOUTON_MENU_2; ++i)
+                        modif_menu(&Interface[MENU_2], w, get_color(w, GREEN), i);
+                    
                     if(clic_area(get_pos_menu(Interface[MENU_2], 0), posX, posY))
                         modif_menu(&Interface[MENU_2], w, get_color(w, CYAN), 0);
                         
                     else if(clic_area(get_pos_menu(Interface[MENU_2], 1), posX, posY))
-                        modif_menu(&Interface[MENU_2], w, get_color(w, RED), 1);
+                        modif_menu(&Interface[MENU_2], w, get_color(w, CYAN), 1);
                         
                     else if(clic_area(get_pos_menu(Interface[MENU_2], 2), posX, posY))
                         modif_menu(&Interface[MENU_2], w, get_color(w, RED), 2);
-                        
-                    else
-                        for(i=0; i<NB_BOUTON_MENU_2; ++i)
-                            modif_menu(&Interface[MENU_2], w, get_color(w, GREEN), i);
                             
                     display_menu(Interface[MENU_2], w);
                 }

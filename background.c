@@ -35,11 +35,11 @@ void display_background(Window w){
 
 /*------------------------------------------------------------------*/
 
-
 void free_background(){
     
     int i;
-    for(i=0; i<HAUTEUR; ++i)
-        SDL_FreeSurface(get_surface(background[i]));    
-    
+    for(i=0; i<HAUTEUR; ++i){
+        SDL_FreeSurface(get_surface(background[i]));
+        free(background[i]);
+    }
 }

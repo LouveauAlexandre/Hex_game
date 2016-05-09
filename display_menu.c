@@ -46,7 +46,9 @@ void free_menu(Menu *m){
     int i;
     for(i=0; i<(*m)->nb_bouton*3; ++i)
         SDL_FreeSurface(get_surface((*m)->menu[i]));
-         
+        
+    free((*m)->menu);
+    
     for(i=0; i<(*m)->nb_bouton; ++i)
         free((*m)->text[i]);
     
@@ -116,14 +118,19 @@ void modif_menu(Menu *m, Window w, Uint32 color, int i){
 
 void modif_texte_menu(Menu *m, Window w, char *text, TTF_Font *font, int i){
     
-    strcpy((*m)->text[i], text);
-    
     i = i*3;
     
-    if(!i)
+    SDL_FreeSurface(get_surface((*m)->menu[i]));
+    free((*m)->menu[i]);
+    init_surface(&((*m)->menu[i]));
+    strcpy((*m)->text[i/3], text);
+    
+    if(!i){
         config_text(&((*m)->menu[0]), (*m)->pos_x, (*m)->pos_y, font, text, get_font_color(w));
-    else
+    }
+    else{
         config_text(&((*m)->menu[i]), get_pos((*m)->menu[i-3])->x, get_pos((*m)->menu[i-3])->y + get_surface((*m)->menu[i-2])->h + 5, font, text, get_font_color(w));
+    }
 }
 
 /*------------------------------------------------------------------*/

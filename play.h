@@ -13,9 +13,18 @@
 
 #define NB_COLONNE 11
 #define NB_LIGNE 11
+
 #define VIDE 'E'
 #define ROUGE 'R'
 #define BLEU 'B'
+
+#define START 0
+#define HAUT 1
+#define BAS 2
+#define GAUCHE 3
+#define DROITE 4
+
+typedef struct Bot_IA_S *Bot_IA;
 
 struct Position_S{
     int x;
@@ -32,6 +41,8 @@ typedef struct Position_S *Position;
 
 struct Node_S{
     Position hexa;
+    int dir;
+    int sens;
     struct Node_S *prev;
     struct Node_S *next;
 };
@@ -49,7 +60,7 @@ bool empty_stack(Stack S);
 
 void init_stack(Stack *S);
 
-void stack_hexa(Stack *S, Position hexa);
+void stack_hexa(Stack *S, Position hexa, int dir, int sens);
 
 void unstack_hexa(Stack *S);
 

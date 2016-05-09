@@ -81,8 +81,9 @@ int Charger(Position grille[NB_LIGNE][NB_COLONNE], Stack *S, bool *player){
 		}
 		for(int j = 0; j < NB_COLONNE; ++j){
 			if(ligne_grille[j] == '.' || ligne_grille[j] == ROUGE || ligne_grille[j] == BLEU){
-				if(ligne_grille[j] != '.')
-					grille[i][j]->color = ligne_grille[j];
+				if(ligne_grille[j] == '.' || ligne_grille[j] == 'B' || ligne_grille[j] == 'R')
+					if(ligne_grille[j] != '.')
+						grille[i][j]->color = ligne_grille[j];
 			}
 			else{
 				printf("Erreur lors de la lecture de la grille de jeu\n");
@@ -106,13 +107,32 @@ int Charger(Position grille[NB_LIGNE][NB_COLONNE], Stack *S, bool *player){
 	while((ent = fscanf(save, "%s %c %d %d", verif_save, &color, &pos1, &pos2)) == 4){
 		if(strcmp(verif_save,"\\play")){
 			printf("Le fichier de sauvegarde n'est pas valide\n");
+			 while((*S)->current != (*S)->sentinel)
+			unstack_hexa(S);
 			return ERR_STACK;
 		}
+		if(color != 'B' && color != 'R'){
+			printf("Le fichier de sauvegarde n'est pas valide\n");
+			while((*S)->current != (*S)->sentinel)
+			unstack_hexa(S);
+			return ERR_STACK;
+		}
+		(*S)->current = (*S)->sentinel;
+		while(((*S)->current = (*S)->current->prev) != (*S)->sentinel)
+			if((*S)->current->hexa->i == pos1 && (*S)->current->hexa->j == pos2){
+				printf("Le fichier de sauvegarde n'est pas valide\n");
+				while((*S)->current != (*S)->sentinel)
+				unstack_hexa(S);
+				return ERR_STACK;
+			}
+		(*S)->current = (*S)->sentinel->prev;
 		hist = grille[pos1][pos2];
 		if(hist->color == color)
-			stack_hexa(S,hist);
+			stack_hexa(S,hist, START, START);
 		else{
 			printf("Le fichier de sauvegarde n'est pas valide\n");
+			while((*S)->current != (*S)->sentinel)
+			unstack_hexa(S);
 			return ERR_STACK;
 		}
 	}

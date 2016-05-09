@@ -22,9 +22,9 @@
 
 #define BPP_VIDEO 32
 
-#define RFONTCOLOR 0
+#define RFONTCOLOR 50
 #define GFONTCOLOR 0
-#define BFONTCOLOR 0
+#define BFONTCOLOR 200
 
 #define NB_COLOR 7
 #define BLACK 0

@@ -68,13 +68,10 @@ SDL_Surface* get_screen(Window w){
 
 void init_color(Window w, Uint32 *c){
     
-    c[BLACK] = SDL_MapRGB(w->screen->format, 0, 0, 0);
-    c[RED] = SDL_MapRGB(w->screen->format, 255, 0, 0);
-    c[BLUE] = SDL_MapRGB(w->screen->format, 0, 0, 255);
-    c[GREEN] = SDL_MapRGB(w->screen->format, 0, 255, 0);
-    c[CYAN] = SDL_MapRGB(w->screen->format, 0, 255, 255);
-    c[YELLOW] = SDL_MapRGB(w->screen->format, 255, 255, 0);
-    c[PURPLE] = SDL_MapRGB(w->screen->format, 255, 0, 255);
+    c[BLACK] = SDL_MapRGB(w->screen->format, 50, 0, 200);
+    c[RED] = SDL_MapRGB(w->screen->format, 205, 38, 38);
+    c[GREEN] = SDL_MapRGB(w->screen->format, 205, 192, 176);
+    c[CYAN] = SDL_MapRGB(w->screen->format, 0, 200, 200);
 }
 
 /*------------------------------------------------------------------*/
